@@ -19,7 +19,7 @@ api.post('/shorten', async (req, res) => {
     return res.status(400).json({ error: 'Invalid URL' });
   }
 
-  const code = nanoid(6);
+  const code = nanoid(6).toLowerCase();
   await redis.set(code, url);
 
   return res.status(200).json({ code, short: `/${code}` });
