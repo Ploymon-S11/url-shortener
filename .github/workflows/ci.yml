@@ -48,8 +48,6 @@ jobs:
           BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "student_id=$STUDENT_ID" >> $GITHUB_OUTPUT
           echo "build_time=$BUILD_TIME" >> $GITHUB_OUTPUT
-          echo "Student ID: $STUDENT_ID"
-          echo "Build Time: $BUILD_TIME"
 
       - name: Build and push
         uses: docker/build-push-action@v5
@@ -59,5 +57,6 @@ jobs:
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/url-shortener:latest
           build-args: |
             BUILD_TIME=${{ steps.metadata.outputs.build_time }}
+            STUDENT_ID=${{ steps.metadata.outputs.student_id }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
