@@ -39,14 +39,24 @@ try {
 const api = express.Router();
 
 api.post('/shorten', async (req, res) => {
-  const { url } = req.body;
+  const { url, customCode } = req.body;
 
   if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
     return res.status(400).json({ error: 'Invalid URL' });
   }
 
-  const code = randomCode(6).toLowerCase();
-  await redis.set(code, url);
+  let code;
+
+  if (customCode) {
+    code = customCode.toLowerCase();
+  } else {
+    code = randomCode(6).toLowerCase();
+  }
+
+  await redis.set(code, JSON.stringify({
+    url,
+    createdAt: new Date().toISOString()
+  }));
 
   return res.status(200).json({ code, short: `/${code}` });
 });
