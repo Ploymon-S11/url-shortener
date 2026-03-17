@@ -54,9 +54,11 @@ api.post('/shorten', async (req, res) => {
   }
 
   await redis.set(code, JSON.stringify({
-    url,
-    createdAt: new Date().toISOString()
-  }));
+  url,
+  createdAt: new Date().toISOString(),
+  clicks: 0,
+  enabled: true
+}));
 
 
   return res.status(200).json({ code, short: `/${code}` });
@@ -74,7 +76,18 @@ api.delete('/:code', async (req, res) => {
   }
   return res.status(200).json({ deleted: req.params.code });
 });
+api.patch('/:code/toggle', async (req, res) => {
+  const result = await redis.toggle(req.params.code);
 
+  if (result === null) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  return res.status(200).json({
+    code: req.params.code,
+    enabled: result
+  });
+});
 api.get('/health', (req, res) => {
   return res.status(200).json({ status: 'ok' });
 });

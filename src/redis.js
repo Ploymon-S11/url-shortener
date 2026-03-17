@@ -9,9 +9,8 @@ const DEFAULT_TTL = 604800; // 7 days
 const CODES_SET = '__codes__';
 
 const redis = {
-  async set(code, url, ttlSeconds = DEFAULT_TTL) {
-    const entry = JSON.stringify({ url, createdAt: new Date().toISOString() });
-    await client.set(code, entry, 'EX', ttlSeconds);
+  async set(code, value, ttlSeconds = DEFAULT_TTL) {
+    await client.set(code, value, 'EX', ttlSeconds);
     await client.sadd(CODES_SET, code);
     return true;
   },
@@ -19,15 +18,27 @@ const redis = {
   async get(code) {
     const raw = await client.get(code);
     if (!raw) return null;
-    try { return JSON.parse(raw).url; } catch { return raw; }
+
+    try {
+      const data = JSON.parse(raw);
+
+      // ✅ ถ้า disabled → ห้าม redirect
+      if (data.enabled === false) return null;
+
+      return data.url;
+    } catch {
+      return raw;
+    }
   },
 
   async incrementClick(code) {
     const raw = await client.get(code);
     if (!raw) return;
+
     try {
       const parsed = JSON.parse(raw);
       parsed.clicks = (parsed.clicks || 0) + 1;
+
       const ttl = await client.ttl(code);
       if (ttl > 0) {
         await client.set(code, JSON.stringify(parsed), 'EX', ttl);
@@ -37,6 +48,25 @@ const redis = {
     } catch { /* ignore */ }
   },
 
+  async toggle(code) {
+    const raw = await client.get(code);
+    if (!raw) return null;
+
+    const data = JSON.parse(raw);
+
+    // ✅ toggle true/false
+    data.enabled = !(data.enabled !== false);
+
+    const ttl = await client.ttl(code);
+    if (ttl > 0) {
+      await client.set(code, JSON.stringify(data), 'EX', ttl);
+    } else {
+      await client.set(code, JSON.stringify(data));
+    }
+
+    return data.enabled;
+  },
+
   async list() {
     const codes = await client.smembers(CODES_SET);
     if (!codes.length) return [];
@@ -44,14 +74,28 @@ const redis = {
     const entries = await Promise.all(codes.map(async (code) => {
       const raw = await client.get(code);
       if (!raw) {
-        await client.srem(CODES_SET, code); // clean up expired
+        await client.srem(CODES_SET, code);
         return null;
       }
+
       try {
-        const { url, createdAt, clicks } = JSON.parse(raw);
-        return { code, url, createdAt, clicks: clicks || 0 };
+        const data = JSON.parse(raw);
+
+        return {
+          code,
+          url: data.url,
+          createdAt: data.createdAt,
+          clicks: data.clicks || 0,
+          enabled: data.enabled !== false // ✅ สำคัญ
+        };
       } catch {
-        return { code, url: raw, createdAt: null, clicks: 0 };
+        return {
+          code,
+          url: raw,
+          createdAt: null,
+          clicks: 0,
+          enabled: true // default
+        };
       }
     }));
 
